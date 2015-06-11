@@ -4,43 +4,46 @@ use std::sync::mpsc::{channel, Sender};
 use std::thread;
 
 const DNS_SERVERS: [&'static str; 4] = [
-    "8.8.4.4:53",
     "8.8.8.8:53",
+    "8.8.4.4:53",
     "208.67.222.222:53",
     "208.67.220.220:53"
 ];
 
-fn perform_dns_lookup(dns_server: &str, src: SocketAddr, size: usize, query: [u8; 512], tx: Sender<(SocketAddr, usize, [u8; 512])>) {
-    let client = UdpSocket::bind("0.0.0.0:0").unwrap();
-    match client.send_to(&query[.. size], dns_server) {
+fn perform_dns_lookup(socket: UdpSocket, dns_server: &str, src: SocketAddr, size: usize, query: [u8; 512], tx: Sender<(SocketAddr, usize, [u8; 512])>) {
+    match socket.send_to(&query[.. size], dns_server) {
         Ok(_) => {
             let mut outbuf = [0; 512];
-            let (amt, _) = client.recv_from(&mut outbuf).unwrap();
-
-            println!("{} has the response", dns_server);
+            let (amt, _) = socket.recv_from(&mut outbuf).unwrap();
 
             match tx.send((src, amt, outbuf)) {
-                Ok(_) => {},
-                Err(_) => {}
+                Ok(_) => println!("{} has the response", dns_server),
+                Err(e) => println!("failed to report: {}", e)
             };
         }
         Err(e) => println!("Error querying DNS: {}", e)
     }
-    drop(client);
 }
 
 fn handle_request(src: SocketAddr, size: usize, query: [u8; 512], respond: Sender<(SocketAddr, usize, [u8; 512])>) {
     let(tx, rx) = channel();
+    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     for dns_server in DNS_SERVERS.iter() {
+        let my_socket = socket.try_clone().unwrap();
         let my_dns_server = dns_server.clone();
         let my_src = src.clone();
         let my_tx = tx.clone();
         thread::spawn(move || {
-            perform_dns_lookup(my_dns_server, my_src, size, query, my_tx);
+            perform_dns_lookup(my_socket, my_dns_server, my_src, size, query, my_tx);
         });
     }
-
-    respond.send(rx.recv().unwrap()).unwrap();
+    match rx.recv() {
+        Ok(msg) => {
+            drop(socket);
+            respond.send(msg).unwrap();
+        }
+        Err(e) => panic!("Failed receiving: {}", e)
+    }
 }
 
 fn main() {
