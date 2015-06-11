@@ -10,40 +10,21 @@ const DNS_SERVERS: [&'static str; 4] = [
     "208.67.220.220:53"
 ];
 
-fn perform_dns_lookup(socket: UdpSocket, dns_server: &str, src: SocketAddr, size: usize, query: [u8; 512], tx: Sender<(SocketAddr, usize, [u8; 512])>) {
-    match socket.send_to(&query[.. size], dns_server) {
-        Ok(_) => {
-            let mut outbuf = [0; 512];
-            let (amt, _) = socket.recv_from(&mut outbuf).unwrap();
-
-            match tx.send((src, amt, outbuf)) {
-                Ok(_) => println!("{} has the response", dns_server),
-                Err(e) => println!("failed to report: {}", e)
-            };
-        }
-        Err(e) => println!("Error querying DNS: {}", e)
-    }
-}
-
 fn handle_request(src: SocketAddr, size: usize, query: [u8; 512], respond: Sender<(SocketAddr, usize, [u8; 512])>) {
-    let(tx, rx) = channel();
     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
     for dns_server in DNS_SERVERS.iter() {
         let my_socket = socket.try_clone().unwrap();
         let my_dns_server = dns_server.clone();
-        let my_src = src.clone();
-        let my_tx = tx.clone();
         thread::spawn(move || {
-            perform_dns_lookup(my_socket, my_dns_server, my_src, size, query, my_tx);
+            my_socket.send_to(&query[.. size], my_dns_server).unwrap();
         });
     }
-    match rx.recv() {
-        Ok(msg) => {
-            drop(socket);
-            respond.send(msg).unwrap();
-        }
-        Err(e) => panic!("Failed receiving: {}", e)
-    }
+
+    let mut outbuf = [0; 512];
+    let (amt, rmt) = socket.recv_from(&mut outbuf).unwrap();
+    println!("response by {}", rmt);
+    drop(socket);
+    respond.send((src, amt, outbuf)).unwrap();
 }
 
 fn main() {
