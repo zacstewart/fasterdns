@@ -51,7 +51,7 @@ fn main() {
     loop {
         match server.recv_from(&mut inbuf) {
             Ok((amt, src)) => {
-                println!("got request");
+                println!("\ngot request");
                 let my_tx = tx.clone();
                 thread::spawn(move || {
                     handle_request(src, amt, inbuf, my_tx);
