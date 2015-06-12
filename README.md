@@ -34,7 +34,7 @@ Enjoy blazing fast DNS lookups. It logs out interactions right now so you can
 see which server responds the speediest.
 
 
-# The Future
+## The Future
 
 - Make the logging optional via flag
 - Maybe let you specify a port instead of defaulting to 53
