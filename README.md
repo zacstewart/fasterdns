@@ -1,7 +1,7 @@
 # fasterdns
 
 This is a DNS proxy server that tries to speed up DNS resolution for you. It
-works running a DNS server locally. It forwards incoming requests to all the
+works by running a DNS server locally. It forwards incoming requests to all the
 public DNS servers, and as soon as one of those real DNS servers answers, it
 responds with the answer. It ignores the (slow) answers from all the other DNS
 servers.
